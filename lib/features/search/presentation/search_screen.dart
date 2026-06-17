@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:confetti/confetti.dart';
 import '../../../core/storage_service.dart';
 import '../../../features/bookmarks/models/saved_item.dart';
 import '../models/search_config.dart';
 import '../services/link_generator.dart';
+import '../widgets/smart_mascot.dart'; // <-- Импортируем наш новый умный маскот
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -12,15 +14,22 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
+  final ConfettiController _confettiController = ConfettiController(
+    duration: const Duration(seconds: 2),
+  );
+
+  // Состояния маскота
+  String _mascotMood = 'idle'; // idle, thinking, excited, sad
+  bool _isMascotActive = false; // true = в центре, false = в углу
+
   List<String> _history = [];
   List<SearchConfig> _results = [];
   bool _isSearching = false;
   double? _extractedMaxPrice;
 
-  // Быстрые фильтры-настроения
-  final List<String> _moods = ['👗 На свидание', '🏖️ В отпуск', '💼 В офис', '🎁 Подарок', '🔥 Тренд'];
+  final List<String> _moods = ['👗 На свидание', '🏖️ В отпуск', '💼 В офис', '🎁 Подарок', ' Тренд'];
 
   @override
   void initState() {
@@ -28,16 +37,31 @@ class _SearchScreenState extends State<SearchScreen> {
     _loadHistory();
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    _confettiController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadHistory() async {
     final history = await StorageService.getHistory();
     setState(() => _history = history);
   }
 
+  // 🧠 Логика запуска поиска
   void _processQuery(String query) {
     if (query.trim().isEmpty) return;
-    setState(() => _isSearching = true);
+    
+    // 1. Маскот в центр, задумывается
+    setState(() {
+      _isSearching = true;
+      _isMascotActive = true; 
+      _mascotMood = 'thinking';
+    });
 
-    Future.delayed(const Duration(milliseconds: 600), () async {
+    // Имитация поиска
+    Future.delayed(const Duration(milliseconds: 1500), () async {
       await StorageService.saveHistory(query);
       await _loadHistory();
 
@@ -50,6 +74,15 @@ class _SearchScreenState extends State<SearchScreen> {
           LinkGenerator.generateOzon(parsed['cleanQuery']),
         ];
         _isSearching = false;
+        
+        // Если ничего не нашли
+        if (_results.isEmpty) {
+          _mascotMood = 'sad';
+        } else {
+          // Если нашли - возвращаем в угол, но довольный
+          _isMascotActive = false; 
+          _mascotMood = 'idle'; 
+        }
       });
     });
   }
@@ -79,7 +112,7 @@ class _SearchScreenState extends State<SearchScreen> {
               DropdownButtonFormField<String>(
                 value: selectedCollection,
                 decoration: const InputDecoration(labelText: 'Коллекция', border: OutlineInputBorder()),
-                items: ['Мои образы ✨', 'Гардероб 2024 👗', 'Подарки 🎁', 'Дом и уют 🏡']
+                items: ['Мои образы ✨', 'Гардероб 2024 👗', 'Подарки 🎁', 'Дом и уют ']
                     .map((val) => DropdownMenuItem(value: val, child: Text(val)))
                     .toList(),
                 onChanged: (val) => setDialogState(() => selectedCollection = val!),
@@ -102,12 +135,10 @@ class _SearchScreenState extends State<SearchScreen> {
                 await StorageService.saveItem(item);
                 if (mounted) {
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Добавлено в хочушки! 💖'), backgroundColor: Color(0xFF00F2EA), behavior: SnackBarBehavior.floating),
-                  );
+                  _triggerCelebration();
                 }
               },
-              child: const Text('Хочу!'),
+              child: const Text('Хочу!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -115,116 +146,200 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  //  Функция праздника
+  void _triggerCelebration() {
+    setState(() {
+      _isMascotActive = true; // Летит в центр
+      _mascotMood = 'excited';
+    });
+    _confettiController.play();
+
+    // Через 3 секунды возвращается в угол
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _isMascotActive = false;
+          _mascotMood = 'idle';
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Адаптивность: если ширина > 600, это планшет
     return LayoutBuilder(
       builder: (context, constraints) {
         final isTablet = constraints.maxWidth > 600;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFFFF5F7), // Нежный фон
+          backgroundColor: const Color(0xFFFFF5F7),
           appBar: AppBar(
             title: const Text('Хочу! 💖', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             centerTitle: true,
             backgroundColor: Colors.transparent,
             elevation: 0,
+            actions: [
+              // Если маскот в углу, его можно показать тут, но мы сделаем оверлей ниже
+            ]
           ),
-          body: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Поле поиска (ОГРОМНОЕ)
-                TextField(
-                  controller: _controller,
-                  style: const TextStyle(fontSize: 20),
-                  decoration: InputDecoration(
-                    hintText: 'Что ты хочешь сегодня? ✨',
-                    hintStyle: const TextStyle(fontSize: 18, color: Colors.grey),
-                    prefixIcon: const Icon(Icons.auto_awesome, size: 32, color: Color(0xFFFF0050)),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.send_rounded, size: 32, color: Colors.white),
-                      style: IconButton.styleFrom(backgroundColor: const Color(0xFFFF0050)),
-                      onPressed: () => _processQuery(_controller.text),
-                    ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                  ),
-                  onSubmitted: _processQuery,
-                ),
-                const SizedBox(height: 16),
-
-                // Чипсы настроений
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: _moods.map((mood) => ActionChip(
-                    label: Text(mood, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFFFF0050), width: 1.5),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    onPressed: () {
-                      _controller.text = mood;
-                      _processQuery(mood);
-                    },
-                  )).toList(),
-                ),
-                const SizedBox(height: 24),
-
-                // Рентген (Пузырь понимания)
-                if (_results.isNotEmpty && !_isSearching) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFFFF0050), Color(0xFFC06BFF)]),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: const Color(0xFFFF0050).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(children: [Icon(Icons.lightbulb, color: Colors.white, size: 24), SizedBox(width: 8), Text('Я тебя поняла! ✨', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))]),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Ищем: "${LinkGenerator.parseQuery(_controller.text)['cleanQuery']}"'
-                          '${_extractedMaxPrice != null ? ' | Бюджет: до ${_extractedMaxPrice!.toInt()} ₽ 💸' : ''}',
-                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+          body: Stack(
+            children: [
+              // 1. Основной контент
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _controller,
+                      style: const TextStyle(fontSize: 20),
+                      decoration: InputDecoration(
+                        hintText: 'Что ты хочешь сегодня? ✨',
+                        hintStyle: const TextStyle(fontSize: 18, color: Colors.grey),
+                        prefixIcon: const Icon(Icons.auto_awesome, size: 32, color: Color(0xFFFF0050)),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.send_rounded, size: 32, color: Colors.white),
+                          style: IconButton.styleFrom(backgroundColor: const Color(0xFFFF0050)),
+                          onPressed: () => _processQuery(_controller.text),
                         ),
-                      ],
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                      ),
+                      onSubmitted: _processQuery,
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Результаты (Адаптивные!)
-                Expanded(
-                  child: _isSearching
-                      ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          CircularProgressIndicator(color: Color(0xFFFF0050), strokeWidth: 4),
-                          SizedBox(height: 16),
-                          Text('Подбираю лучшие варианты... 💖', style: TextStyle(fontSize: 18, color: Colors.grey))
-                        ]))
-                      : isTablet 
-                        ? GridView.builder(
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.1),
-                            itemCount: _results.length,
-                            itemBuilder: (context, index) => _buildMarketplaceCard(_results[index]),
-                          )
-                        : ListView.builder(
-                            itemCount: _results.length,
-                            itemBuilder: (context, index) => Padding(
-                              padding: const EdgeInsets.only(bottom: 16.0),
-                              child: _buildMarketplaceCard(_results[index]),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: _moods.map((mood) => ActionChip(
+                        label: Text(mood, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFFFF0050), width: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        onPressed: () {
+                          _controller.text = mood;
+                          _processQuery(mood);
+                        },
+                      )).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Пузырь понимания
+                    if (_results.isNotEmpty && !_isSearching) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFFFF0050), Color(0xFFC06BFF)]),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [BoxShadow(color: const Color(0xFFFF0050).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(children: [
+                              Icon(Icons.lightbulb, color: Colors.white, size: 24),
+                              SizedBox(width: 8),
+                              Text('Я тебя поняла! ✨', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))
+                            ]),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Ищем: "${LinkGenerator.parseQuery(_controller.text)['cleanQuery']}"'
+                              '${_extractedMaxPrice != null ? ' | Бюджет: до ${_extractedMaxPrice!.toInt()} ₽ ' : ''}',
+                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
                             ),
-                          ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                                      // Результаты
+                    Expanded(
+                      child: _isSearching
+                          ? const SizedBox.shrink() // Пусто, маскот сам покажет "думаю"
+                          : _results.isEmpty
+                              ? const SizedBox.shrink() // Пусто, маскот сам стоит по центру
+                              : isTablet
+                                  ? GridView.builder(
+                                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.1),
+                                      itemCount: _results.length,
+                                      itemBuilder: (context, index) => _buildMarketplaceCard(_results[index]),
+                                    )
+                                  : ListView.builder(
+                                      itemCount: _results.length,
+                                      itemBuilder: (context, index) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 16.0),
+                                        child: _buildMarketplaceCard(_results[index]),
+                                      ),
+                                    ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+                              // 2. МАСКОТ (Анимированное перемещение)
+                            // 2. МАСКОТ (Анимированное перемещение)
+              AnimatedPositioned(
+                duration: const Duration(seconds: 1),
+                curve: Curves.elasticOut,
+                
+                // Если есть результаты и маскот в покое → в футер
+                // Иначе → на весь экран (для центрирования)
+                top: (_results.isNotEmpty && _mascotMood == 'idle') ? null : 0,
+                bottom: (_results.isNotEmpty && _mascotMood == 'idle') ? 20 : 0,
+                left: 0,
+                right: 0,
+                
+                child: (_results.isNotEmpty && _mascotMood == 'idle')
+                    ? Align(
+                        alignment: Alignment.bottomCenter,
+                        child: SmartMascot(mood: _mascotMood, size: 120),
+                      )
+                    : Center(
+                        child: (_results.isEmpty && _mascotMood == 'idle')
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SmartMascot(mood: _mascotMood, size: 150),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Привет! Я твой умный помощник! 💖',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFCB11AB),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Что ты хочешь найти сегодня?',
+                                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              )
+                            : SmartMascot(mood: _mascotMood, size: 150),
+                      ),
+              ),
+
+              // 3. Конфетти (поверх всего)
+              Align(
+                alignment: Alignment.topCenter,
+                child: IgnorePointer( // Чтобы конфетти не мешали кликать
+                  child: ConfettiWidget(
+                    confettiController: _confettiController,
+                    blastDirectionality: BlastDirectionality.explosive,
+                    shouldLoop: false,
+                    colors: const [Color(0xFFFF0050), Color(0xFF00F2EA), Colors.yellow, Colors.purple],
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -233,7 +348,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildMarketplaceCard(SearchConfig config) {
     final isWb = config.marketplace == 'Wildberries';
-    final color = isWb ? const Color(0xFFCB11AB) : const Color(0xFF005BFF); // Фирменные цвета
+    final color = isWb ? const Color(0xFFCB11AB) : const Color(0xFF005BFF);
 
     return Card(
       color: Colors.white,
