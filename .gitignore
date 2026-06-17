@@ -1,0 +1,16 @@
+# Создаём .gitignore
+echo "build/
+android/
+ios/
+windows/
+macos/
+linux/
+.dart_tool/
+.idea/
+*.iml
+pubspec.lock
+.metadata
+.flutter-plugins-dependencies" > .gitignore
+
+# Добавляем .gitignore в коммит
+git add .gitignore
