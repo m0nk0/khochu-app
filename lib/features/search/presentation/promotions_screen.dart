@@ -29,6 +29,9 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
   int _loadedPromos = 0;
   int _totalPromos = 0;
   List<Map<String, dynamic>> _allPromotions = [];
+  
+  // 🆕 Флаг: показывать ли кнопку "Загрузить ещё"
+  bool _showLoadMoreButton = false;
 
   @override
   void initState() {
@@ -52,6 +55,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
       _products = [];
       _loadedPromos = 0;
       _totalPromos = 0;
+      _showLoadMoreButton = false;
     });
 
     try {
@@ -86,7 +90,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
               limit: 30,
             );
             
-            debugPrint(' Акция "$promoTitle": ${promoProducts.length} товаров');
+            debugPrint('📦 Акция "$promoTitle": ${promoProducts.length} товаров');
             
             for (var product in promoProducts) {
               if (!seenIds.contains(product.id)) {
@@ -130,6 +134,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
 
     setState(() {
       _isLoadingMore = true;
+      _showLoadMoreButton = false;
     });
 
     try {
@@ -191,6 +196,23 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
     }
   }
 
+  // 🆕 Обработчик скролла — показываем кнопку при достижении конца
+  void _onScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollEndNotification) {
+      final metrics = notification.metrics;
+      final reachedEnd = metrics.extentAfter <= 0;
+      
+      if (reachedEnd && _loadedPromos < _allPromotions.length && !_isLoadingMore && _products.isNotEmpty) {
+        if (!_showLoadMoreButton) {
+          setState(() {
+            _showLoadMoreButton = true;
+          });
+          debugPrint('👇 Пользователь доскроллил до конца — показываем кнопку');
+        }
+      }
+    }
+  }
+
   void _triggerCelebration() {
     _confettiController.play();
     Future.delayed(const Duration(seconds: 3), () {
@@ -229,7 +251,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
               DropdownButtonFormField<String>(
                 value: selectedCollection,
                 decoration: const InputDecoration(labelText: 'Коллекция', border: OutlineInputBorder()),
-                items: ['Мои образы ✨', 'Гардероб 2024 ', 'Подарки 🎁', 'Дом и уют 🏠']
+                items: ['Мои образы ✨', 'Гардероб 2024 👗', 'Подарки 🎁', 'Дом и уют 🏠']
                     .map((val) => DropdownMenuItem(value: val, child: Text(val)))
                     .toList(),
                 onChanged: (val) => setDialogState(() => selectedCollection = val!),
@@ -333,27 +355,24 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                     : _products.isNotEmpty
                         ? NotificationListener<ScrollNotification>(
                             onNotification: (notification) {
-                              // Показываем кнопку "Загрузить ещё" при скролле до конца
-                              if (notification is ScrollEndNotification) {
-                                final reachedEnd = notification.metrics.extentAfter <= 0;
-                                if (reachedEnd && _loadedPromos < _allPromotions.length && !_isLoadingMore) {
-                                  // Автозагрузка следующей порции
-                                  _loadMorePromotions();
-                                }
-                              }
+                              _onScrollNotification(notification);
                               return false;
                             },
                             child: GridView.builder(
                               padding: const EdgeInsets.all(12),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 12,
+                              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 600,
                                 mainAxisSpacing: 12,
-                                childAspectRatio: 0.65,
+                                crossAxisSpacing: 12,
+                                mainAxisExtent: 360,
                               ),
-                              itemCount: _products.length + (_isLoadingMore ? 1 : 0),
+                              itemCount: _products.length + 
+                                  (_isLoadingMore ? 1 : 0) + 
+                                  (_showLoadMoreButton ? 1 : 0) +
+                                  (_loadedPromos >= _allPromotions.length ? 1 : 0),
                               itemBuilder: (context, index) {
-                                if (index == _products.length) {
+                                // Индикатор загрузки
+                                if (_isLoadingMore && index == _products.length) {
                                   return const Center(
                                     child: Padding(
                                       padding: EdgeInsets.all(16.0),
@@ -361,6 +380,66 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                                     ),
                                   );
                                 }
+                                
+                                // Кнопка "Загрузить ещё"
+                                if (_showLoadMoreButton && 
+                                    index == _products.length + (_isLoadingMore ? 1 : 0)) {
+                                  return Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: ElevatedButton.icon(
+                                        onPressed: _loadMorePromotions,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFFF6B35),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                            horizontal: 32,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                          ),
+                                          elevation: 4,
+                                        ),
+                                        icon: const Icon(Icons.local_fire_department, size: 24),
+                                        label: const Text(
+                                          'Загрузить ещё акции',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                
+                                // Сообщение "Все акции загружены"
+                                if (_loadedPromos >= _allPromotions.length && 
+                                    index == _products.length + (_isLoadingMore ? 1 : 0) + (_showLoadMoreButton ? 1 : 0)) {
+                                  return Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Все акции загружены',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }
+                                
+                                // Обычная карточка товара
                                 return ProductCard(
                                   product: _products[index],
                                   onAddToWishlist: () => _showSaveDialog(_products[index]),
