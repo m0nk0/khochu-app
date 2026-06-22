@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
-import 'features/search/presentation/search_screen.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'core/cache/cache_manager.dart';
+import 'features/home/presentation/home_screen.dart';
 import 'features/bookmarks/presentation/bookmarks_screen.dart';
 
-void main() {
+void main() async {
+  // ВАЖНО: Инициализация Flutter bindings перед async операциями
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Инициализация Hive для дискового кэша
+  await Hive.initFlutter();
+  
+  // Инициализация умного кэша
+  await CacheManager().init();
+  // Очистка старого кэша (удалить после первого запуска!)
+await CacheManager().clear();
+debugPrint('🧹 Старый кэш очищен');
+  
+  // Запуск приложения
   runApp(const KhochuApp());
 }
 
@@ -30,7 +45,7 @@ class KhochuApp extends StatelessWidget {
           bodyLarge: TextStyle(fontSize: 18, color: Color(0xFF333333)),
           bodyMedium: TextStyle(fontSize: 16, color: Color(0xFF555555)),
         ),
-        // ✅ ИСПРАВЛЕНО: CardThemeData вместо CardTheme
+        // ✅ CardThemeData вместо CardTheme
         cardTheme: CardThemeData(
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -63,7 +78,10 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: const [SearchScreen(), BookmarksScreen()],
+        children: const [
+          HomeScreen(),         // ← Главный экран с 5 кнопками
+          BookmarksScreen(),    // ← Хочушки
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         height: 80,
@@ -72,9 +90,9 @@ class _MainScreenState extends State<MainScreen> {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.search, size: 32),
-            selectedIcon: Icon(Icons.search, size: 32, color: Color(0xFFFF0050)),
-            label: 'Найти',
+            icon: Icon(Icons.home_outlined, size: 32),
+            selectedIcon: Icon(Icons.home, size: 32, color: Color(0xFFFF0050)),
+            label: 'Главная',
           ),
           NavigationDestination(
             icon: Icon(Icons.favorite_border, size: 32),

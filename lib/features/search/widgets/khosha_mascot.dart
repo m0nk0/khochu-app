@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 class KhoshaMascot extends StatefulWidget {
   final String mood;
+  final double size; // ← ДОБАВЛЕНО
 
-  const KhoshaMascot({super.key, required this.mood});
+  const KhoshaMascot({
+    super.key,
+    required this.mood,
+    this.size = 160, // ← ДОБАВЛЕНО с дефолтным значением
+  });
 
   @override
   State<KhoshaMascot> createState() => _KhoshaMascotState();
@@ -77,8 +82,8 @@ class _KhoshaMascotState extends State<KhoshaMascot> with SingleTickerProviderSt
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 160,
-            height: 160,
+            width: widget.size, // ← ИЗМЕНЕНО: было 160
+            height: widget.size, // ← ИЗМЕНЕНО: было 160
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
@@ -95,8 +100,12 @@ class _KhoshaMascotState extends State<KhoshaMascot> with SingleTickerProviderSt
                 _imagePath,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
-                  return const Center(
-                    child: Text('🛍️', style: TextStyle(fontSize: 80)),
+                  return Center(
+                    child: Icon(
+                      Icons.shopping_bag,
+                      size: widget.size * 0.5, // ← ИЗМЕНЕНО: пропорционально размеру
+                      color: const Color(0xFFFF0050),
+                    ),
                   );
                 },
               ),
