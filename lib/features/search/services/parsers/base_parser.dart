@@ -11,10 +11,9 @@ abstract class BaseParser {
   String get marketplaceName;
   String get channelName;
 
-  Future<List<Product>> search(String query) async {
+  Future<List<Product>> search(String query, {int page = 1}) async {
     String? receivedJsonData;
 
-    // 1. СНАЧАЛА создаём контроллер БЕЗ NavigationDelegate
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
@@ -29,7 +28,6 @@ abstract class BaseParser {
         },
       );
 
-    // 2. ТЕПЕРЬ добавляем NavigationDelegate ОТДЕЛЬНО (controller уже объявлен)
     controller.setNavigationDelegate(
       NavigationDelegate(
         onPageFinished: (String url) {
@@ -39,20 +37,27 @@ abstract class BaseParser {
       ),
     );
 
-    // 3. Загружаем страницу
-    controller.loadRequest(Uri.parse('$searchUrl${Uri.encodeComponent(query)}'));
+    String finalUrl = '$searchUrl${Uri.encodeComponent(query)}';
+    
+    if (page > 1) {
+      if (finalUrl.contains('?')) {
+        finalUrl += '&page=$page';
+      } else {
+        finalUrl += '?page=$page';
+      }
+    }
+    
+    debugPrint('[$marketplaceName] Загружаем URL: $finalUrl');
+    controller.loadRequest(Uri.parse(finalUrl));
 
-    // Увеличили ожидание до 6 секунд (WB может долго грузить анти-бот)
-    await Future.delayed(const Duration(seconds: 6));
+    await Future.delayed(const Duration(seconds: 8));
 
-    // Если JSON пришел через channel — используем его
     if (receivedJsonData != null && receivedJsonData!.isNotEmpty) {
       debugPrint('[$marketplaceName] Используем перехваченный JSON');
       final result = _parseInterceptedJson(receivedJsonData!);
       if (result.isNotEmpty) return result;
     }
 
-    // Fallback: DOM-парсинг
     debugPrint('[$marketplaceName] Fallback на DOM-парсинг');
     final result = await controller.runJavaScriptReturningResult(jsFallbackScript);
     return _parseJsonResult(result);
@@ -62,7 +67,6 @@ abstract class BaseParser {
     try {
       String jsonString = rawResult.toString();
       
-      // Убираем внешние кавычки если они есть
       if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
         jsonString = jsonString.substring(1, jsonString.length - 1);
         jsonString = jsonString.replaceAll(r'\"', '"');
@@ -72,7 +76,6 @@ abstract class BaseParser {
 
       dynamic decoded = jsonDecode(jsonString);
       
-      // Если после декодирования всё еще строка — декодируем ещё раз
       if (decoded is String) {
         decoded = jsonDecode(decoded);
       }
@@ -109,10 +112,9 @@ abstract class BaseParser {
       final data = jsonDecode(jsonString);
       final products = <Product>[];
 
-      // Wildberries структура: data.products
       if (data is Map && data['data'] != null && data['data']['products'] != null) {
         final items = data['data']['products'] as List;
-        for (var item in items.take(15)) {
+        for (var item in items.take(25)) {
           final id = item['id'];
           products.add(Product(
             id: 'wb_$id',

@@ -6,6 +6,7 @@ import '../widgets/main_action_button.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../search/presentation/promotions_screen.dart';
 import '../../search/presentation/wb_search_screen.dart';
+import '../../search/presentation/ozon_search_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -172,8 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       colors: [Color(0xFF005BFF), Color(0xFF003EBA)],
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Экран Ozon в разработке')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OzonSearchScreen()),
                       );
                     },
                   ),

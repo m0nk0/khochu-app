@@ -47,74 +47,147 @@ class JsScripts {
     })();
   ''';
 
+    // 🆕 OZON DOM-ПАРСЕР С АВТО-СКРОЛЛОМ + ОТПРАВКА ЧЕРЕЗ КАНАЛ
   static const String ozonSearchScript = '''
-    (function() {
+    (async function() {
       const products = [];
-      const cards = document.querySelectorAll('[data-widget="searchResultsV2"] a.tile-root, [class*="tile-root"]');
+      const seen = new Set();
       
-      cards.forEach((card, index) => {
-        if (index > 15) return;
+      function parseCard(card, index) {
+        const linkEl = card.querySelector('a[href*="/product/"]');
+        if (!linkEl) return null;
         
-        let link = '';
-        if (card.tagName === 'A') {
-          link = card.href || '';
-        } else {
-          const linkEl = card.querySelector('a[href]');
-          if (linkEl) link = linkEl.href || '';
-        }
-        
+        let link = linkEl.href || '';
+        if (!link) return null;
         if (link && !link.startsWith('http')) {
           link = 'https://www.ozon.ru' + link;
         }
         
-        if (!link || link === 'https://www.ozon.ru/' || link === 'https://www.ozon.ru') {
-          return;
+        if (seen.has(link)) return null;
+        seen.add(link);
+        
+        const imgEl = card.querySelector('img');
+        let imageUrl = '';
+        if (imgEl) {
+          imageUrl = imgEl.src || imgEl.getAttribute('data-src') || '';
+          if (imageUrl.includes('wc200') || imageUrl.includes('wc300')) {
+            imageUrl = imageUrl.replace(/wc\\d+/, 'wc500');
+          }
         }
         
-        let priceEl = card.querySelector('[class*="price__current-price"], [class*="price__price"], span[class*="price"]');
-        if (!priceEl) {
-          const allSpans = card.querySelectorAll('span');
-          for (let el of allSpans) {
-            if (el.innerText.includes('₽') && el.innerText.match(/\\d/)) {
-              priceEl = el;
-              break;
+        let priceText = '0';
+        const priceSection = card.querySelector('.q1b1_5_3-a');
+        if (priceSection) {
+          const priceEl = priceSection.querySelector('.tsHeadline500Medium');
+          if (priceEl) {
+            const text = priceEl.innerText || '';
+            const match = text.match(/(\\d[\\d\\s]*\\d)/);
+            if (match) {
+              priceText = match[1].replace(/\\s/g, '');
             }
           }
         }
-        const priceText = priceEl ? priceEl.innerText.replace(/[^0-9]/g, '') : '0';
+        
+        if (priceText === '0') {
+          const allSpans = card.querySelectorAll('span');
+          for (let el of allSpans) {
+            const text = el.innerText || '';
+            if (text.includes('₽') && text.match(/\\d/)) {
+              const match = text.match(/(\\d[\\d\\s]*\\d)/);
+              if (match) {
+                priceText = match[1].replace(/\\s/g, '');
+                break;
+              }
+            }
+          }
+        }
+        
+        let name = '';
+        const nameEl = card.querySelector('.tsBody500Medium');
+        if (nameEl) {
+          name = nameEl.innerText.trim();
+        }
         
         let rating = 0;
-        const ratingEl = card.querySelector('[class*="rating"], [class*="stars"]');
-        if (ratingEl) {
-          const match = ratingEl.innerText.match(/(\\d[.,]\\d)/);
-          if (match) rating = parseFloat(match[1].replace(',', '.'));
-        }
-        
         let salesCount = 0;
-        const cardText = card.innerText;
-        const salesMatch = cardText.match(/купили\\s+(\\d+)/i) || 
-                           cardText.match(/(\\d+)\\+?\\s*покупок/i);
-        if (salesMatch) {
-          salesCount = parseInt(salesMatch[1].replace(/[^0-9]/g, ''));
+        const ratingEls = card.querySelectorAll('.tsBodyControl300XSmall');
+        
+        if (ratingEls.length > 0) {
+          const ratingText = ratingEls[0].innerText || '';
+          const ratingMatch = ratingText.match(/(\\d[.,]\\d)/);
+          if (ratingMatch) {
+            rating = parseFloat(ratingMatch[1].replace(',', '.'));
+          }
         }
         
-        const imgEl = card.querySelector('img');
-        const titleEl = card.querySelector('[class*="title"], [class*="name"]');
-
-        if (priceText && priceText !== '0') {
-          products.push({
-            id: 'ozon_' + index + '_' + Date.now(),
-            name: titleEl ? titleEl.innerText.trim() : 'Товар Ozon',
-            price: parseInt(priceText),
-            imageUrl: imgEl ? imgEl.src : '',
-            rating: rating,
-            salesCount: salesCount,
-            deepLink: link,
-            marketplace: 'ozon'
-          });
+        if (ratingEls.length > 1) {
+          const salesText = ratingEls[1].innerText || '';
+          const salesMatch = salesText.match(/(\\d[\\d\\s]*)\\s*отзыв/i);
+          if (salesMatch) {
+            salesCount = parseInt(salesMatch[1].replace(/\\s/g, ''));
+          }
         }
-      });
-      return JSON.stringify(products);
+        
+        return {
+          id: 'ozon_' + index + '_' + Date.now(),
+          name: name || 'Товар Ozon',
+          price: parseInt(priceText) || 0,
+          imageUrl: imageUrl,
+          rating: rating,
+          salesCount: salesCount,
+          deepLink: link,
+          marketplace: 'ozon'
+        };
+      }
+      
+      function collectCards() {
+        const cards = document.querySelectorAll('.tile-root');
+        let newCount = 0;
+        cards.forEach((card, index) => {
+          const product = parseCard(card, products.length);
+          if (product) {
+            products.push(product);
+            newCount++;
+          }
+        });
+        return { total: cards.length, newFound: newCount };
+      }
+      
+      // ШАГ 1: Собираем начальные карточки
+      let result = collectCards();
+      console.log('Ozon: Initial - ' + result.total + ' cards, ' + result.newFound + ' new');
+      
+      // ШАГ 2: Скроллим и собираем 15 раз
+      let noNewCount = 0;
+      for (let i = 0; i < 15; i++) {
+        window.scrollBy(0, 1000);
+        await new Promise(r => setTimeout(r, 800));
+        
+        result = collectCards();
+        console.log('Ozon: Scroll ' + (i+1) + '/15 - ' + result.total + ' cards, ' + result.newFound + ' new');
+        
+        if (result.newFound === 0) {
+          noNewCount++;
+          if (noNewCount >= 3) {
+            console.log('Ozon: No new cards for 3 scrolls, stopping');
+            break;
+          }
+        } else {
+          noNewCount = 0;
+        }
+      }
+      
+      console.log('Ozon: Total parsed ' + products.length + ' products');
+      
+      // 🆕 ШАГ 3: Отправляем результат через канал Flutter
+      const jsonResult = JSON.stringify(products);
+      console.log('Ozon: Sending result to Flutter (' + jsonResult.length + ' chars)');
+      
+      if (window.flutter_ozon_result) {
+        window.flutter_ozon_result.postMessage(jsonResult);
+      } else {
+        console.error('Ozon: flutter_ozon_result channel not found!');
+      }
     })();
   ''';
 
@@ -128,7 +201,6 @@ class JsScripts {
       window.fetch = function(...args) {
         const url = args[0] || '';
         return originalFetch.apply(this, args).then(response => {
-          // Ловим API запросы Мегамаркета
           if ((url.includes('/api/') || url.includes('catalog') || url.includes('search')) 
               && url.includes('megamarket.ru')) {
             response.clone().json().then(data => {
@@ -173,7 +245,6 @@ class JsScripts {
     (function() {
       const products = [];
       
-      // Ищем карточки товаров на Мегамаркете
       const selectors = [
         '.product-item',
         '.catalog-product-card',
@@ -190,7 +261,6 @@ class JsScripts {
       cards.forEach((card, index) => {
         if (index > 15) return;
         
-        // Ссылка
         let link = '';
         const linkEl = card.tagName === 'A' ? card : card.querySelector('a[href]');
         if (linkEl) {
@@ -202,7 +272,6 @@ class JsScripts {
         
         if (!link || !link.includes('/catalog/')) return;
         
-        // Цена
         let priceEl = card.querySelector('[class*="price"], .product-price, [data-price]');
         if (!priceEl) {
           const allSpans = card.querySelectorAll('span');
@@ -216,7 +285,6 @@ class JsScripts {
         }
         const priceText = priceEl ? priceEl.innerText.replace(/[^0-9]/g, '') : '0';
         
-        // Рейтинг
         let rating = 0;
         const ratingEl = card.querySelector('[class*="rating"], [class*="stars"]');
         if (ratingEl) {
@@ -224,7 +292,6 @@ class JsScripts {
           if (match) rating = parseFloat(match[1].replace(',', '.'));
         }
         
-        // Продажи
         let salesCount = 0;
         const cardText = card.innerText;
         const salesMatch = cardText.match(/отзывов?:?\\s*(\\d+)/i) || 
@@ -233,11 +300,9 @@ class JsScripts {
           salesCount = parseInt(salesMatch[1].replace(/[^0-9]/g, ''));
         }
         
-        // Картинка
         const imgEl = card.querySelector('img');
         const imageUrl = imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || '') : '';
         
-        // Название
         let titleEl = card.querySelector('[class*="title"], [class*="name"], h3, h4');
         const name = titleEl ? titleEl.innerText.trim() : '';
 
