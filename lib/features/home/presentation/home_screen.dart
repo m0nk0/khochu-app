@@ -7,6 +7,7 @@ import '../../search/presentation/search_screen.dart';
 import '../../search/presentation/promotions_screen.dart';
 import '../../search/presentation/wb_search_screen.dart';
 import '../../search/presentation/ozon_search_screen.dart';
+import '../../search/presentation/search_everywhere_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -130,16 +131,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
                   
                   // ========== 3. 🔍 ПОИСК ВЕЗДЕ ==========
-                  MainActionButton(
+                 MainActionButton(
                     icon: Icons.search,
                     title: '🔍 Поиск везде',
-                    subtitle: 'WB + Ozon + Акции',
+                    subtitle: 'WB + Ozon одновременно',
                     gradient: const LinearGradient(
                       colors: [Color(0xFF00F2EA), Color(0xFF005BFF)],
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Экран поиска в разработке')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SearchEverywhereScreen()),
                       );
                     },
                   ),
