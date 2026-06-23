@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/product.dart';
 import '../services/traffic_tracker.dart';
@@ -24,57 +25,145 @@ class ProductCard extends StatelessWidget {
     }
   }
 
+  // 🆕 ИНФОРМАТИВНЫЙ ПЛЕЙСХОЛДЕР С SHIMMER
   Widget _buildPlaceholder() {
-    final List<Color> gradientColors;
-    final IconData icon;
-    final String label;
-
-    switch (product.marketplace) {
-      case 'wildberries':
-        gradientColors = [const Color(0xFFCB11AB), const Color(0xFF9B0B8B)];
-        icon = Icons.shopping_bag;
-        label = 'Wildberries';
-        break;
-      case 'ozon':
-        gradientColors = [const Color(0xFF005BFF), const Color(0xFF003EBA)];
-        icon = Icons.local_mall;
-        label = 'Ozon';
-        break;
-      case 'aliexpress':
-        gradientColors = [const Color(0xFFFF4747), const Color(0xFFCC0000)];
-        icon = Icons.store;
-        label = 'AliExpress';
-        break;
-      default:
-        gradientColors = [const Color(0xFFFF0050), const Color(0xFFCB11AB)];
-        icon = Icons.card_giftcard;
-        label = 'Хочу! 💖';
-    }
-
-    return Container(
-      height: 160,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradientColors,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 48, color: Colors.white.withOpacity(0.9)),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.white.withOpacity(0.95),
-            ),
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE8D5F0),      // Светло-фиолетовый
+      highlightColor: const Color(0xFFF5E6FA), // Очень светлый фиолетовый
+      child: Container(
+        height: 160,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFFCB11AB).withOpacity(0.15),
+              const Color(0xFF9B0B8B).withOpacity(0.25),
+            ],
           ),
-        ],
+        ),
+        child: Stack(
+          children: [
+            // Информативный контент поверх shimmer
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Иконка маркетплейса
+                  Row(
+                    children: [
+                      Text(
+                        product.marketplaceIcon,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        product.marketplaceName,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF6B1B5B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Название товара
+                  Text(
+                    product.name,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Цена
+                  Text(
+                    product.price > 0 ? product.formattedPrice : 'Цена уточняется',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFCB11AB),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Рейтинг и продажи
+                  if (product.rating > 0 || product.salesCount > 0)
+                    Row(
+                      children: [
+                        if (product.rating > 0) ...[
+                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                          const SizedBox(width: 2),
+                          Text(
+                            product.rating.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF6B1B5B),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (product.salesCount > 0)
+                          Text(
+                            product.formattedSales,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF6B1B5B),
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+
+            // Индикатор загрузки в углу
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: Color(0xFFCB11AB),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'фото...',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B1B5B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -97,11 +186,12 @@ class ProductCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ========== КАРТИНКА (ПРИЖАТА К ВЕРХУ) ==========
+          // ========== КАРТИНКА ИЛИ ПЛЕЙСХОЛДЕР ==========
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             child: Stack(
               children: [
+                // Если есть URL — грузим картинку, иначе — информативный плейсхолдер
                 product.imageUrl.isNotEmpty
                     ? Image.network(
                         product.imageUrl,
@@ -110,37 +200,35 @@ class ProductCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
-                          return Container(
-                            height: 160,
-                            color: Colors.grey[100],
-                            child: const Center(
-                              child: CircularProgressIndicator(color: Color(0xFFFF0050)),
-                            ),
-                          );
+                          // Пока грузится — показываем плейсхолдер
+                          return _buildPlaceholder();
                         },
                         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
                       )
                     : _buildPlaceholder(),
 
-                Positioned(
-                  top: 6,
-                  left: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
-                      ],
-                    ),
-                    child: Text(
-                      '${product.marketplaceIcon} ${product.marketplaceName}',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                // Метка маркетплейса (только если есть картинка)
+                if (product.imageUrl.isNotEmpty)
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+                        ],
+                      ),
+                      child: Text(
+                        '${product.marketplaceIcon} ${product.marketplaceName}',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
-                ),
 
+                // Бейдж комиссии (только в debug)
                 if (kDebugMode && product.commission != null && product.commission! > 0)
                   Positioned(
                     top: 6,
@@ -165,6 +253,7 @@ class ProductCard extends StatelessWidget {
                     ),
                   ),
 
+                // Бейдж скидки
                 if (product.discount != null && product.discount! > 0)
                   Positioned(
                     bottom: 6,
@@ -185,13 +274,12 @@ class ProductCard extends StatelessWidget {
             ),
           ),
 
-          // ========== КОНТЕНТ: FLEX С РАВНОМЕРНЫМ РАСПРЕДЕЛЕНИЕМ ==========
+          // ========== КОНТЕНТ С FLEX-РАСПРЕДЕЛЕНИЕМ ==========
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                // 🟢 РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ МЕЖДУ ЭЛЕМЕНТАМИ
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Название
@@ -217,7 +305,7 @@ class ProductCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Кнопки (прижаты к низу благодаря spaceBetween)
+                  // Кнопки
                   Row(
                     children: [
                       Expanded(

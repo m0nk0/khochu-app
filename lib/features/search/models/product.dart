@@ -104,6 +104,41 @@ class Product {
     return deepLink;
   }
 
+  // 🆕 Метод для создания копии с обновлёнными полями
+  Product copyWith({
+    String? id,
+    String? name,
+    double? price,
+    double? oldPrice,
+    String? imageUrl,
+    double? rating,
+    int? reviewCount,
+    int? salesCount,
+    String? deepLink,
+    String? marketplace,
+    DateTime? cachedAt,
+    String? extractionMethod,
+    String? trackingLink,
+    double? commission,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      price: price ?? this.price,
+      oldPrice: oldPrice ?? this.oldPrice,
+      imageUrl: imageUrl ?? this.imageUrl,
+      rating: rating ?? this.rating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      salesCount: salesCount ?? this.salesCount,
+      deepLink: deepLink ?? this.deepLink,
+      marketplace: marketplace ?? this.marketplace,
+      cachedAt: cachedAt ?? this.cachedAt,
+      extractionMethod: extractionMethod ?? this.extractionMethod,
+      trackingLink: trackingLink ?? this.trackingLink,
+      commission: commission ?? this.commission,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

@@ -5,6 +5,8 @@ import '../../search/widgets/khosha_mascot.dart';
 import '../widgets/main_action_button.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../search/presentation/promotions_screen.dart';
+import '../../search/presentation/wb_search_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -152,8 +154,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       colors: [Color(0xFFCB11AB), Color(0xFF9B0B8B)],
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Экран WB в разработке')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const WbSearchScreen()),
                       );
                     },
                   ),

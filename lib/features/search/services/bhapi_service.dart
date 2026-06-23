@@ -9,7 +9,6 @@ class BhApiService {
   static const String _apiToken = 'Gc_GmTkr2M9-XaLIOmLDTCpKGGINnATiDwQP3QxVTnY';
   static final CacheManager _cache = CacheManager();
 
-  // Поиск товаров по WB (БЕЗ картинок - быстро)
   static Future<List<Product>> searchWbProducts(
     String query, {
     int page = 1,
@@ -17,7 +16,6 @@ class BhApiService {
   }) async {
     final cacheKey = 'search:wb:$query:page$page:limit$limit';
 
-    // Проверяем кэш
     final cached = await _cache.get(cacheKey);
     if (cached != null) {
       debugPrint('✅ WB поиск из кэша: "$query" (${cached.length} товаров)');
@@ -35,15 +33,36 @@ class BhApiService {
         },
       );
 
-      final response = await http.get(
-        url,
-        headers: {
-          'X-API-Token': _apiToken,
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 30));
+      http.Response? response;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          debugPrint('[BHAPI] Попытка $attempt из 3...');
+          response = await http.get(
+            url,
+            headers: {
+              'X-API-Token': _apiToken,
+              'Content-Type': 'application/json',
+            },
+          ).timeout(const Duration(seconds: 60));
+          
+          if ((response.statusCode == 429 || response.statusCode == 503) && attempt < 3) {
+            final waitSeconds = response.statusCode == 503 ? attempt * 10 : attempt * 3;
+            debugPrint('[BHAPI] ⚠️ HTTP ${response.statusCode}! Ждём $waitSeconds сек...');
+            await Future.delayed(Duration(seconds: waitSeconds));
+            continue;
+          }
+          break;
+        } catch (e) {
+          debugPrint('[BHAPI] ⚠️ Попытка $attempt не удалась: $e');
+          if (attempt < 3) {
+            await Future.delayed(Duration(seconds: attempt * 5));
+          } else {
+            rethrow;
+          }
+        }
+      }
 
-      debugPrint('[BHAPI] Статус: ${response.statusCode}');
+      debugPrint('[BHAPI] Статус: ${response!.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -61,7 +80,7 @@ class BhApiService {
                   id: item['id']?.toString() ?? '',
                   name: item['description'] ?? 'Товар WB',
                   price: price,
-                  imageUrl: '', // Картинки нет в поисковом ответе
+                  imageUrl: '',
                   rating: (item['rating'] as num?)?.toDouble() ?? 0,
                   salesCount: (item['feedbacks'] as num?)?.toInt() ?? 0,
                   deepLink: item['link'] ?? '',
@@ -79,36 +98,32 @@ class BhApiService {
           }
 
           debugPrint('[BHAPI] Найдено товаров: ${products.length}');
-
-          // Сохраняем в кэш
-          await _cache.set(cacheKey, products);
-
+          _cache.set(cacheKey, products);
           return products;
         }
+      } else if (response.statusCode == 503) {
+        debugPrint('[BHAPI] ❌ BHAPI временно недоступен (503).');
+        throw Exception('Сервис WB временно недоступен. Попробуйте позже.');
       } else if (response.statusCode == 429) {
-        debugPrint('[BHAPI] ⚠️ Rate limit! Подождите...');
+        debugPrint('[BHAPI] ❌ Rate limit (429) — все попытки исчерпаны');
+        throw Exception('Слишком много запросов. Подождите минуту.');
       }
 
       return [];
     } catch (e, stackTrace) {
       debugPrint('[BHAPI] Ошибка поиска: $e');
-      debugPrint('[BHAPI] Stack: $stackTrace');
-      return [];
+      rethrow;
     }
   }
 
-  // Получить детали товара (С картинками) - для будущего использования
   static Future<Product?> getWbProductDetails(String productUrl) async {
     final cacheKey = 'product:wb:$productUrl';
 
-    // Проверяем кэш
     final cached = await _cache.get(cacheKey);
     if (cached != null && cached.isNotEmpty) {
       debugPrint('✅ WB детали из кэша');
       return cached.first;
     }
-
-    debugPrint('🔍 WB детали через BHAPI');
 
     try {
       final url = Uri.parse('$_baseUrl/wb/api/v1/item/by-url').replace(
@@ -117,45 +132,85 @@ class BhApiService {
         },
       );
 
-      final response = await http.get(
-        url,
-        headers: {
-          'X-API-Token': _apiToken,
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 30));
+      http.Response? response;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          response = await http.get(
+            url,
+            headers: {
+              'X-API-Token': _apiToken,
+              'Content-Type': 'application/json',
+            },
+          ).timeout(const Duration(seconds: 60));
+          
+          if ((response.statusCode == 429 || response.statusCode == 503) && attempt < 3) {
+            final waitSeconds = response.statusCode == 503 ? attempt * 5 : attempt * 3;
+            debugPrint('[BHAPI] ⚠️ HTTP ${response.statusCode} для деталей. Ждём $waitSeconds сек...');
+            await Future.delayed(Duration(seconds: waitSeconds));
+            continue;
+          }
+          break;
+        } catch (e) {
+          debugPrint('[BHAPI] ⚠️ Попытка $attempt не удалась: $e');
+          if (attempt < 3) {
+            await Future.delayed(Duration(seconds: attempt * 2));
+          } else {
+            return null;
+          }
+        }
+      }
 
-      if (response.statusCode == 200) {
+      if (response!.statusCode == 200) {
         final data = jsonDecode(response.body);
-
+        
         if (data['status'] == 'ok' && data['data'] != null) {
           final itemData = data['data']['data'];
+          
+          if (itemData == null) return null;
+          
+          final hasImages = itemData['main_imgs'] != null && 
+                            itemData['main_imgs'] is List && 
+                            (itemData['main_imgs'] as List).isNotEmpty;
+          
+          if (hasImages) {
+            // 🆕 Парсим цену из price_info
+            double price = 0;
+            if (itemData['price_info'] != null) {
+              final priceInfo = itemData['price_info'];
+              if (priceInfo['price'] != null) {
+                price = (priceInfo['price'] as num?)?.toDouble() ?? 0;
+              } else if (priceInfo['salePrice'] != null) {
+                price = (priceInfo['salePrice'] as num?)?.toDouble() ?? 0;
+              } else if (priceInfo is num) {
+                price = priceInfo.toDouble();
+              }
+            }
+            
+            final product = Product(
+              id: itemData['item_id']?.toString() ?? '',
+              name: itemData['title'] ?? 'Товар WB',
+              price: price,  // ← ТЕПЕРЬ С ЦЕНОЙ!
+              imageUrl: itemData['main_imgs'][0],
+              rating: 0,
+              salesCount: 0,
+              deepLink: itemData['product_url'] ?? productUrl,
+              marketplace: 'wildberries',
+              cachedAt: DateTime.now(),
+              extractionMethod: 'bhapi_details',
+            );
 
-          final product = Product(
-            id: itemData['item_id']?.toString() ?? '',
-            name: itemData['title'] ?? 'Товар WB',
-            price: 0, // price_info может быть пустым
-            imageUrl: itemData['main_imgs'] != null && itemData['main_imgs'].isNotEmpty
-                ? itemData['main_imgs'][0]
-                : '',
-            rating: 0,
-            salesCount: 0,
-            deepLink: itemData['product_url'] ?? productUrl,
-            marketplace: 'wildberries',
-            cachedAt: DateTime.now(),
-            extractionMethod: 'bhapi_details',
-          );
-
-          // Сохраняем в кэш (TTL 24 часа - картинки меняются редко)
-          await _cache.set(cacheKey, [product], ttl: const Duration(hours: 24));
-
-          return product;
+            _cache.set(cacheKey, [product], ttl: const Duration(hours: 24));
+            debugPrint('[BHAPI] ✅ Картинка загружена: ${product.imageUrl}');
+            return product;
+          }
         }
+      } else if (response.statusCode == 429 || response.statusCode == 503) {
+        debugPrint('[BHAPI] ❌ HTTP ${response.statusCode} — все попытки исчерпаны');
       }
 
       return null;
     } catch (e) {
-      debugPrint('[BHAPI] Ошибка получения деталей: $e');
+      debugPrint('[BHAPI] ❌ Ошибка для $productUrl: $e');
       return null;
     }
   }
