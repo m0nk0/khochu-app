@@ -25,11 +25,12 @@ class ProductCard extends StatelessWidget {
     }
   }
 
-  // 🆕 ИНФОРМАТИВНЫЙ ПЛЕЙСХОЛДЕР С SHIMMER
+  // 🆕 ИНФОРМАТИВНЫЙ ПЛЕЙСХОЛДЕР С ЯРКИМ SHIMMER
   Widget _buildPlaceholder() {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFFE8D5F0),      // Светло-фиолетовый
-      highlightColor: const Color(0xFFF5E6FA), // Очень светлый фиолетовый
+      baseColor: const Color(0xFFB895C7),        // тёмный фиолетовый
+      highlightColor: const Color(0xFFF0C8E8),   // яркий розовый
+      period: const Duration(milliseconds: 1200),
       child: Container(
         height: 160,
         width: double.infinity,
@@ -38,8 +39,8 @@ class ProductCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFFCB11AB).withOpacity(0.15),
-              const Color(0xFF9B0B8B).withOpacity(0.25),
+              const Color(0xFFCB11AB).withOpacity(0.45),
+              const Color(0xFF9B0B8B).withOpacity(0.65),
             ],
           ),
         ),
@@ -57,20 +58,23 @@ class ProductCard extends StatelessWidget {
                     children: [
                       Text(
                         product.marketplaceIcon,
-                        style: const TextStyle(fontSize: 16),
+                        style: const TextStyle(fontSize: 18),
                       ),
                       const SizedBox(width: 6),
                       Text(
                         product.marketplaceName,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF6B1B5B),
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(blurRadius: 3, color: Colors.black38, offset: Offset(0, 1)),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
                   // Название товара
                   Text(
@@ -78,10 +82,13 @@ class ProductCard extends StatelessWidget {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                       height: 1.2,
+                      shadows: [
+                        Shadow(blurRadius: 3, color: Colors.black38, offset: Offset(0, 1)),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -90,9 +97,12 @@ class ProductCard extends StatelessWidget {
                   Text(
                     product.price > 0 ? product.formattedPrice : 'Цена уточняется',
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFFCB11AB),
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(blurRadius: 4, color: Colors.black54, offset: Offset(0, 2)),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -102,14 +112,17 @@ class ProductCard extends StatelessWidget {
                     Row(
                       children: [
                         if (product.rating > 0) ...[
-                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                          const Icon(Icons.star, size: 15, color: Colors.amber),
                           const SizedBox(width: 2),
                           Text(
                             product.rating.toStringAsFixed(1),
                             style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF6B1B5B),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(blurRadius: 2, color: Colors.black38, offset: Offset(0, 1)),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -118,8 +131,12 @@ class ProductCard extends StatelessWidget {
                           Text(
                             product.formattedSales,
                             style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF6B1B5B),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(blurRadius: 2, color: Colors.black38, offset: Offset(0, 1)),
+                              ],
                             ),
                           ),
                       ],
@@ -135,8 +152,11 @@ class ProductCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4),
+                  ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -153,9 +173,9 @@ class ProductCard extends StatelessWidget {
                     const Text(
                       'фото...',
                       style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF6B1B5B),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFCB11AB),
                       ),
                     ),
                   ],
